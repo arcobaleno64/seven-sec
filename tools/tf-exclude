@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+# Drop whole per-file sections of a (UTF-8) TFVC unified diff whose path looks like it carries connection info.
+# Per file: 2 header lines ("編輯: path" / "檔案: path"), an OPENING "=====" line followed by "--- ", the diff,
+# then a CLOSING "=====" line. Sections are cut at opening bars only. Unrecognised layout => fail closed (non-zero exit, message on stderr).
+import re, sys
+PAT = re.compile(r"(?i)((^|[\\/])(app|web)\.config$|appsettings[^\\/]*\.json$|[\\/]\.env[^\\/]*$|[\\/]configuration\.cs$"
+                 r"|connectionstring|\.pubxml(\.user)?$|[\\/]secrets?\.[^\\/]+$)")
+lines = sys.stdin.read().splitlines(keepends=True)
+is_bar = lambda l: len(l.strip()) >= 20 and set(l.strip()) == {"="}
+opening = [i for i, l in enumerate(lines) if is_bar(l) and i + 1 < len(lines) and lines[i + 1].startswith("--- ")]
+if not opening:
+    if any(l.strip() for l in lines):
+        sys.exit("tf-exclude: no per-file sections recognised; refusing to pass the diff through")
+    sys.exit(0)
+starts = [max(i - 2, 0) for i in opening]
+if starts[0] > 0 and any(l.strip() for l in lines[:starts[0]]):
+    sys.exit("tf-exclude: unexpected text before the first section; refusing to pass the diff through")
+dropped = 0
+for n, s in enumerate(starts):
+    e = starts[n + 1] if n + 1 < len(starts) else len(lines)
+    path = lines[s + 1].split(":", 1)[-1].strip()
+    if PAT.search(path):
+        dropped += 1
+        print(f"excluded: {path}", file=sys.stderr)
+    else:
+        sys.stdout.write("".join(lines[s:e]))
+print(f"tf-exclude: {len(starts)} file section(s), {dropped} excluded", file=sys.stderr)

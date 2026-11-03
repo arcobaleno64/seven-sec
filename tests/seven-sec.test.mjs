@@ -310,6 +310,35 @@ test("[REQ-02] agy transient failure (non-zero exit) is retried once; a second f
   }
 });
 
+// tools/ (TFVC helpers, python3): not part of src/, but they gate what leaves the machine, so they are pinned too.
+const py = spawnSync("python3", ["--version"]).status === 0;
+const tool = (name, input) => spawnSync(path.join(ROOT, "tools", name), { input });
+const fixture = (name) => fs.readFileSync(path.join(ROOT, "tests", "fixtures", name));
+
+test("[REQ-10] tf2utf8: per-line decode of a mixed Big5 (headers, local side) / UTF-8 (server side) TFVC diff", { skip: !py }, () => {
+  const r = tool("tf2utf8", fixture("tf-mixed-encoding.diff"));
+  assert.equal(r.status, 0);
+  const out = new TextDecoder("utf-8", { fatal: true }).decode(r.stdout); // throws unless the whole output is valid UTF-8
+  assert.match(out, /^編輯: D:\\x\\Foo\.cs$/m);
+  assert.match(out, /^-.*專員/m);
+  assert.match(out, /^\+.*申請人甲/m);
+});
+
+test("[REQ-10] tf-exclude: drops whole sections of config/secret files (no leaked tail), keeps the rest, fails closed", { skip: !py }, () => {
+  const utf8 = tool("tf2utf8", fixture("tf-real-layout.diff")).stdout;
+  assert.ok(utf8.toString().includes("SECRET"), "fixture really contains the secrets");
+  const r = tool("tf-exclude", utf8), out = r.stdout.toString();
+  assert.equal(r.status, 0);
+  assert.ok(!out.includes("SECRET"), "no secret text, including the last lines before the closing bar");
+  assert.deepEqual(out.match(/^\+\+\+ .*$/gm).map((l) => l.split("\\").pop()), ["Foo.cs", "Bar.cs"]);
+  assert.match(r.stderr.toString(), /excluded: .*app\.config/);
+  assert.match(r.stderr.toString(), /excluded: .*Shared\\Configuration\.cs/);
+  assert.match(r.stderr.toString(), /4 file section\(s\), 2 excluded/);
+  const bad = tool("tf-exclude", Buffer.from("garbage\n"));
+  assert.notEqual(bad.status, 0, "unrecognised layout is refused, not passed through");
+  assert.equal(bad.stdout.length, 0);
+});
+
 test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines", () => {
   const files = fs.globSync("src/**/*.mjs", { cwd: ROOT });
   const text = files.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));
