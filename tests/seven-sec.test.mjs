@@ -278,6 +278,11 @@ test("[REQ-03] parseNumstat: git -z rename records ('a\\td\\t\\0old\\0new') do n
   ]);
 });
 
+test("[REQ-03] parseUnifiedDiff: a miscounted hunk header cannot swallow the next file (Tier-1 path must survive)", () => {
+  const d = "--- a/x.mjs\n+++ b/x.mjs\n@@ -1,1 +1,3 @@\n c\n d\n e\n--- a/auth/login.mjs\n+++ b/auth/login.mjs\n@@ -1 +1 @@\n-a\n+b\n";
+  assert.deepEqual(parseUnifiedDiff(d).map((f) => f.file), ["x.mjs", "auth/login.mjs"]);
+});
+
 test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines and <= 20,480 bytes (20 KB)", () => {
   const files = fs.globSync("src/**/*.mjs", { cwd: ROOT });
   const text = files.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));

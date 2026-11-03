@@ -43,8 +43,8 @@ export function parseUnifiedDiff(raw) {
   const pathOf = (l) => l.match(/^[-+]{3}\s+(?:[ab]\/|[^:\r\n]+:\s*)?(.+?)(?:\t|;C\d+|$)/)?.[1];
   let cur = null, o = 0, n = 0; // o/n: old/new lines left in the current hunk (headers only count outside a hunk)
   for (let i = 0; i < ls.length; i++) {
-    const h = !o && !n && ls[i].match(/^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/);
-    if (o || n) {
+    const h = o < 1 && n < 1 && ls[i].match(/^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/);
+    if (o > 0 || n > 0) {
       const k = ls[i][0];
       if (k === "-") o--; else if (k === "+") n--; else if (k !== "\\") o--, n--;
       if (cur && (k === "-" || k === "+")) cur.lines++;
