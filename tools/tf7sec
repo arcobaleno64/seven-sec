@@ -1,16 +1,22 @@
 #!/bin/bash
 # tf7sec: review a raw TFVC unified diff (stdin, mixed Big5/UTF-8) with 7sec.
 #   raw diff -> tf2utf8 (per-line decode) -> tf-exclude (drop config/secret-bearing files) -> 7sec --diff
-# Usage: type X.diff | wsl -e <repo>/tools/tf7sec [extra 7sec args, e.g. --json]
-# Spec: $TF7SEC_SPEC, default <repo>/docs/example-spec.md (a --spec in the args wins).
+# Usage: type X.diff | wsl -e <repo>/tools/tf7sec --spec <file> [other 7sec args, e.g. --json]
+# Spec is REQUIRED, no default: pass --spec <file> or set TF7SEC_SPEC (a --spec in the args wins).
+# A silent default would apply one project's rules to another project's diff.
 # Exit: 7sec's own (0 PASS / 1 BLOCK / 2 TOOL_ERROR); a failed conversion/filter is 2, never a silent PASS.
 here=$(dirname "$(readlink -f "$0")")
-spec=${TF7SEC_SPEC:-$here/../docs/example-spec.md}
+spec=${TF7SEC_SPEC:-}
+case " $* " in *" --spec "*|*" --spec="*) spec=given ;; esac
+if [ -z "$spec" ]; then
+  echo "✖ TOOL_ERROR: no spec given. Pass --spec <file> or set TF7SEC_SPEC (there is deliberately no default). Nothing was sent to the reviewers." >&2
+  exit 2
+fi
 tmp=$(mktemp) && trap 'rm -f "$tmp"' EXIT
 set -o pipefail
 if ! "$here/tf2utf8" | "$here/tf-exclude" > "$tmp"; then
   echo "✖ TOOL_ERROR: tf2utf8/tf-exclude failed; nothing was sent to the reviewers" >&2
   exit 2
 fi
-case " $* " in *" --spec "*) ;; *) set -- --spec "$spec" "$@" ;; esac
+[ "$spec" = given ] || set -- --spec "$spec" "$@"
 7sec --diff "$tmp" "$@"

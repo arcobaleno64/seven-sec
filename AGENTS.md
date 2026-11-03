@@ -10,7 +10,7 @@
 3. 第 3 輪仍為 BLOCK → 停止，把剩餘 findings 交給使用者裁示（reviewer 無跨次記憶，已驗證的誤報可能再次出現；回報時標明「已驗證誤報」與「待裁示」兩類）。
 
 ## TFVC／非 git 專案（AI 必讀，避免誤判）
-- 一律用 `tools/tf7sec`；**不要**自己拼 `tf2utf8 | 7sec`。自拼管線若未加 `set -o pipefail`，上游失敗會變成空輸入，7sec 會印 `Clean working tree` 並 exit 0——**這是假通過**。預期有變更卻看到 `Clean working tree`，一律視為失敗，不是 PASS。
+- 一律用 `tools/tf7sec --spec <該專案的 spec>`；**必須明確指定 spec**（`--spec` 或環境變數 `TF7SEC_SPEC`），沒有預設值，沒給會被拒絕（exit 2）。spec 由各專案自備（放在該專案自己的 `docs/` 下），**不可跨專案套用**。**不要**自己拼 `tf2utf8 | 7sec`。自拼管線若未加 `set -o pipefail`，上游失敗會變成空輸入，7sec 會印 `Clean working tree` 並 exit 0——**這是假通過**。預期有變更卻看到 `Clean working tree`，一律視為失敗，不是 PASS。
 - 7sec 會把 diff 送給外部模型（agy、codex）。**不得**送審含連線字串、密碼、金鑰、真實個資的檔案；遮蔽只認特定格式，不認主機、帳號、cookie。`tf7sec` 只依「檔名」排除設定檔，不檢查內容。
 - `tf difference` 看不到新增檔案，須另外審（見 README），且該路徑不經 `tf-exclude`，送審前要自行確認內容。
 - 文件與指令中的 `<…>` 是佔位符，必須換成實際值；每個區塊都標明在 Windows cmd 或 WSL 執行，不可混用。`wsl bash -c` 會被外層 shell 重新解析，`exit=` 不可信，請用 `wsl -e`。

@@ -339,6 +339,14 @@ test("[REQ-10] tf-exclude: drops whole sections of config/secret files (no leake
   assert.equal(bad.stdout.length, 0);
 });
 
+test("[REQ-10] tf7sec: a spec is required (no silent default); refuses with exit 2 before any conversion or reviewer call", { skip: !py }, () => {
+  const env = { ...process.env, TF7SEC_SPEC: "" };
+  const r = spawnSync(path.join(ROOT, "tools", "tf7sec"), { input: fixture("tf-real-layout.diff"), env });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr.toString(), /no spec given/);
+  assert.equal(r.stdout.length, 0, "nothing was reviewed or printed");
+});
+
 test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines", () => {
   const files = fs.globSync("src/**/*.mjs", { cwd: ROOT });
   const text = files.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));

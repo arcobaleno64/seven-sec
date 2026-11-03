@@ -138,6 +138,6 @@ export async function review({ diff, spec = "", intent = "", dual = false, timeo
       counterexample: `${hits} token(s) redacted before review.`, fix: "Remove and rotate it; load from env." });
     return dual ? dedupe(findings) : findings.toSorted(byRank);
   } finally {
-    fs.rmSync(cwd, { recursive: true, force: true });
+    try { fs.rmSync(cwd, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }); } catch {}
   }
 }
