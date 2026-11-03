@@ -7,7 +7,7 @@ import path from "node:path";
 import pkg from "../package.json" with { type: "json" };
 import { deps, review, resolveNativeWindowsBinary, RANK } from "./goldfish.mjs";
 
-const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"; // repo with no commits
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_BYTES = 128 * 1024;
 const TIER1 = ["**/{auth,security,crypto,jwt,login,token,permission,.github/workflows}/**", // matched lowercased
   "**/package.json", "**/dockerfile*", "**/.env*",
@@ -60,7 +60,7 @@ export function parseUnifiedDiff(raw) {
 }
 
 async function collectDiff({ staged, base, diff: diffArg }) {
-  if (diffArg) { // external diff (e.g. TFVC): no git calls at all
+  if (diffArg) { // external diff (TFVC): no git
     const raw = diffArg === "-" ? await text(process.stdin) : fs.readFileSync(diffArg, "utf8");
     return { root: process.cwd(), files: parseUnifiedDiff(raw), diff: raw };
   }
@@ -115,7 +115,7 @@ async function doctor() {
   const probe = (label, file, args) => deps.execFile(file, args, { timeout: 3000 }).then(
     (r) => [label, true, String(r.stdout).trim().split("\n")[0]],
     (e) => [label, false, e.code === "ENOENT" ? "not found on PATH" : String(e.message).split("\n")[0]]);
-  const major = Number(process.versions.node.split(".")[0]);
+  const major = parseInt(process.versions.node);
   const checks = [["node", major >= 24, `v${process.versions.node} (>=24)`], ...await Promise.all([
     probe("git", "git", ["--version"]), probe("git repo", "git", ["rev-parse", "--is-inside-work-tree"]),
     probe("agy", "agy", ["--version"]), probe("codex", resolveNativeWindowsBinary("codex"), ["--version"])])];
@@ -153,8 +153,8 @@ export async function run(argv = process.argv.slice(2), { signal, timeoutMs } = 
       console.log(v.json ? JSON.stringify({ verdict: "PASS", findings: [] }) : c("green", "✔ Clean working tree (0 lines changed)"));
       return 0;
     }
-    const syntax = v.diff ? [] : await preflight(root, files, v.base ? "HEAD:" : v.staged ? ":" : null); // external diff: no local copy to check
-    if (syntax.length) return console.error(c(["red", "bold"], "✖ BLOCK: syntax error (node --check)"), `\n${syntax.join("\n\n")}`), 1;
+    const syntax = v.diff ? [] : await preflight(root, files, v.base ? "HEAD:" : v.staged ? ":" : null); // external diff
+    if (syntax.length) return (v.json ? console.log(JSON.stringify({ verdict: "BLOCK", syntax })) : console.error(c(["red", "bold"], "✖ BLOCK: syntax error (node --check)"), `\n${syntax.join("\n\n")}`)), 1;
     const spec = v.spec ? fs.readFileSync(v.spec, "utf8") : "";
     const n = Buffer.byteLength(diff) + Buffer.byteLength(spec);
     if (n > MAX_BYTES) return console.error(c("yellow", `✖ Diff + spec ${Math.ceil(n / 1024)} KB > 128 KB; split the change (never truncated).`)), 2;

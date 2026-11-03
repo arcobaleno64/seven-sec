@@ -258,6 +258,17 @@ test("[REQ-03] parseUnifiedDiff: '--- x'/'+++ y' inside a hunk are content, not 
   assert.deepEqual(parseUnifiedDiff(d), [{ file: "x.mjs", lines: 2 }]);
 });
 
+test("[REQ-07] Pre-flight: --json emits a JSON BLOCK verdict on stdout for a syntax error", async () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, "bad.mjs"), "const = ;\n");
+  quiet(); mockGit({ root, files: [["bad.mjs", 1]], diff: diffOf(1) });
+  assert.equal(await run(["--json"]), 1);
+  const out = JSON.parse(printed(console.log));
+  assert.equal(out.verdict, "BLOCK");
+  assert.match(out.syntax[0], /SyntaxError/);
+  fs.rmSync(root, { recursive: true });
+});
+
 test("[REQ-07] Pre-flight: --diff skips the working-tree syntax check (external diff is reviewed as given)", async () => {
   const root = tmp(), cwd = process.cwd();
   fs.mkdirSync(path.join(root, "src"));
