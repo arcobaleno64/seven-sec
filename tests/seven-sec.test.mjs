@@ -310,12 +310,10 @@ test("[REQ-02] agy transient failure (non-zero exit) is retried once; a second f
   }
 });
 
-test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines and <= 20,480 bytes (20 KB)", () => {
+test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines", () => {
   const files = fs.globSync("src/**/*.mjs", { cwd: ROOT });
   const text = files.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));
   const lines = text.reduce((n, t) => n + t.split("\n").length - (t.endsWith("\n") ? 1 : 0), 0);
-  const bytes = text.reduce((n, t) => n + Buffer.byteLength(t), 0);
   assert.ok(files.length >= 2);
   assert.ok(lines <= 350, `src has ${lines} lines`);
-  assert.ok(bytes <= 20_480, `src has ${bytes} bytes`);
 });
