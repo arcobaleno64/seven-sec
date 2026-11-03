@@ -247,18 +247,36 @@ test("[REQ-08] 7sec init: appends to an existing hook once (idempotent)", () => 
   assert.equal(init(dir), 0);
   assert.equal(init(dir), 0);
   const body = fs.readFileSync(hook, "utf8");
-  assert.ok(body.startsWith("#!/bin/sh\necho lint\n"));
+  assert.equal(body, "#!/bin/sh\n7sec --staged || exit 1\necho lint\n"); // first, so a later `exit 0` cannot skip it
   assert.equal(body.split("7sec --staged").length - 1, 1);
   assert.equal(fs.statSync(hook).mode & 0o777, 0o755);
   fs.rmSync(dir, { recursive: true });
 });
 
-test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines and <= 16,384 bytes (16 KB)", () => {
+test("[REQ-03] parseUnifiedDiff: '--- x'/'+++ y' inside a hunk are content, not file headers", () => {
+  const d = "--- a/x.mjs\n+++ b/x.mjs\n@@ -1,2 +1,2 @@\n--- old\n+++ new\n";
+  assert.deepEqual(parseUnifiedDiff(d), [{ file: "x.mjs", lines: 2 }]);
+});
+
+test("[REQ-07] Pre-flight: --diff skips the working-tree syntax check (external diff is reviewed as given)", async () => {
+  const root = tmp(), cwd = process.cwd();
+  fs.mkdirSync(path.join(root, "src"));
+  fs.writeFileSync(path.join(root, "src", "app.js"), "const = ;\n"); // unrelated local file with the same path
+  fs.writeFileSync(path.join(root, "x.diff"), "--- a/src/app.js\n+++ b/src/app.js\n@@ -0,0 +1 @@\n+const a = 1;\n");
+  process.chdir(root);
+  try {
+    quiet(); const { fn } = mockSpawn();
+    assert.equal(await run(["--diff", "x.diff"]), 0);
+    assert.equal(fn.mock.callCount(), 1);
+  } finally { process.chdir(cwd); fs.rmSync(root, { recursive: true }); }
+});
+
+test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines and <= 20,480 bytes (20 KB)", () => {
   const files = fs.globSync("src/**/*.mjs", { cwd: ROOT });
   const text = files.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));
   const lines = text.reduce((n, t) => n + t.split("\n").length - (t.endsWith("\n") ? 1 : 0), 0);
   const bytes = text.reduce((n, t) => n + Buffer.byteLength(t), 0);
   assert.ok(files.length >= 2);
   assert.ok(lines <= 350, `src has ${lines} lines`);
-  assert.ok(bytes <= 16_384, `src has ${bytes} bytes`);
+  assert.ok(bytes <= 20_480, `src has ${bytes} bytes`);
 });

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// 7sec entry point (see HELP).
 import { parseArgs, styleText } from "node:util";
 import { text } from "node:stream/consumers";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import pkg from "../package.json" with { type: "json" };
 import { deps, review, resolveNativeWindowsBinary, RANK } from "./goldfish.mjs";
 
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"; // repo with no commits
 const MAX_BYTES = 128 * 1024;
-const TIER1 = ["**/{auth,security,crypto,jwt,login,token,permission,.github/workflows}/**", // lowercase; matched case-insensitively
+const TIER1 = ["**/{auth,security,crypto,jwt,login,token,permission,.github/workflows}/**", // matched lowercased
   "**/package.json", "**/dockerfile*", "**/.env*",
   "**/web.config", "**/app.config", "**/appsettings*.json", "**/global.asax*"];
 const HOOK_CMD = "7sec --staged"; // needs a global `npm link`; no local devDependency
@@ -41,9 +41,15 @@ export function parseNumstat(raw) {
 export function parseUnifiedDiff(raw) {
   const out = [], ls = raw.replace(/^\uFEFF/, "").split(/\r?\n/); // Windows UTF-8 BOM
   const pathOf = (l) => l.match(/^[-+]{3}\s+(?:[ab]\/|[^:\r\n]+:\s*)?(.+?)(?:\t|;C\d+|$)/)?.[1];
-  let cur = null;
+  let cur = null, o = 0, n = 0; // o/n: old/new lines left in the current hunk (headers only count outside a hunk)
   for (let i = 0; i < ls.length; i++) {
-    if (ls[i].startsWith("--- ") && ls[i + 1]?.startsWith("+++ ")) {
+    const h = !o && !n && ls[i].match(/^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/);
+    if (o || n) {
+      const k = ls[i][0];
+      if (k === "-") o--; else if (k === "+") n--; else if (k !== "\\") o--, n--;
+      if (cur && (k === "-" || k === "+")) cur.lines++;
+    } else if (h) [o, n] = [+(h[1] ?? 1), +(h[2] ?? 1)];
+    else if (ls[i].startsWith("--- ") && ls[i + 1]?.startsWith("+++ ")) {
       const p = [pathOf(ls[i + 1]), pathOf(ls[i])].find((x) => x && x !== "/dev/null"); // deleted → old path
       cur = p ? { file: p.replaceAll("\\", "/").replace(/^(?:[A-Za-z]:|\$)?\/+/, ""), lines: 0 } : null;
       if (cur) out.push(cur);
@@ -67,11 +73,19 @@ async function collectDiff({ staged, base, diff: diffArg }) {
   return { root, files: parseNumstat(numstat), diff };
 }
 
-/** Pre-flight `node --check` on changed .js/.mjs still on disk. */
-async function preflight(root, files) {
-  const targets = files.map((f) => path.join(root, f.file)).filter((p) => /\.m?js$/.test(p) && fs.existsSync(p));
-  const results = await Promise.all(targets.map((p) => deps.execFile(process.execPath, ["--check", p])
-    .then(() => "", (e) => String(e.stderr || e.message).trim())));
+/** Pre-flight `node --check` on changed .js/.mjs; `ref` ("" = index, "HEAD:" = --base) checks that revision, null the working tree. */
+async function preflight(root, files, ref) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "7sec-"));
+  const results = await Promise.all(files.filter((f) => /\.m?js$/.test(f.file)).map(async ({ file }, i) => {
+    let p = path.join(root, file);
+    if (ref !== null) {
+      const src = await git(["show", `${ref}${file}`]).catch(() => "");
+      if (!src) return "";
+      fs.writeFileSync(p = path.join(tmp, `${i}-${path.basename(file)}`), src);
+    } else if (!fs.existsSync(p)) return "";
+    return deps.execFile(process.execPath, ["--check", p]).then(() => "", (e) => String(e.stderr || e.message).trim());
+  }));
+  fs.rmSync(tmp, { recursive: true });
   return results.filter(Boolean);
 }
 
@@ -79,7 +93,6 @@ export const isTier1 = (file) => TIER1.some((g) => path.posix.matchesGlob(file.t
 const countLines = (files) => files.reduce((n, f) => n + f.lines, 0);
 export const isDual = (files) => countLines(files) >= 50 || files.some((f) => isTier1(f.file));
 const isSerious = (f) => RANK[f.severity] <= RANK.high || f.category === "drift";
-const isBlocking = (findings) => findings.some(isSerious);
 
 function render({ findings, dual, ms, files, block }) {
   const mode = dual ? "🛡️ Dual Quorum (agy + codex)" : "⚡ Fast Path (agy)";
@@ -110,14 +123,14 @@ async function doctor() {
   return checks.every(([, ok]) => ok) ? 0 : 2;
 }
 
-/** Create/append .git/hooks/pre-commit (idempotent). */
 export function init(dir = process.cwd()) {
   const gitDir = path.join(dir, ".git");
   if (!fs.statSync(gitDir, { throwIfNoEntry: false })?.isDirectory()) return console.error("✖ No .git directory here"), 2;
   const hook = path.join(gitDir, "hooks", "pre-commit");
   fs.mkdirSync(path.dirname(hook), { recursive: true });
   const old = fs.existsSync(hook) ? fs.readFileSync(hook, "utf8") : "";
-  if (!old.includes(HOOK_CMD)) fs.writeFileSync(hook, old ? `${old.trimEnd()}\n${HOOK_CMD}\n` : `#!/bin/sh\n${HOOK_CMD}\n`);
+  const at = old.startsWith("#!") ? old.indexOf("\n") + 1 : 0; // run 7sec FIRST so an existing `exit 0` cannot skip it
+  if (!old.includes(HOOK_CMD)) fs.writeFileSync(hook, `${at ? old.slice(0, at) : "#!/bin/sh\n"}${HOOK_CMD}${old ? " || exit 1" : ""}\n${old.slice(at)}`);
   fs.chmodSync(hook, 0o755);
   console.log(c("green", `✔ pre-commit hook: ${hook}`));
   return 0;
@@ -140,14 +153,14 @@ export async function run(argv = process.argv.slice(2), { signal, timeoutMs } = 
       console.log(v.json ? JSON.stringify({ verdict: "PASS", findings: [] }) : c("green", "✔ Clean working tree (0 lines changed)"));
       return 0;
     }
-    const syntax = await preflight(root, files);
+    const syntax = v.diff ? [] : await preflight(root, files, v.base ? "HEAD:" : v.staged ? ":" : null); // external diff: no local copy to check
     if (syntax.length) return console.error(c(["red", "bold"], "✖ BLOCK: syntax error (node --check)"), `\n${syntax.join("\n\n")}`), 1;
     const spec = v.spec ? fs.readFileSync(v.spec, "utf8") : "";
     const kb = Math.ceil((Buffer.byteLength(diff) + Buffer.byteLength(spec)) / 1024);
     if (kb * 1024 > MAX_BYTES) return console.error(c("yellow", `✖ Diff + spec ${kb} KB > 128 KB; split the change (never truncated).`)), 2;
     const dual = isDual(files);
     const findings = await review({ diff, spec, intent: v.intent ?? "", dual, signal, timeoutMs });
-    const block = isBlocking(findings), ms = performance.now() - t0;
+    const block = findings.some(isSerious), ms = performance.now() - t0;
     console.log(v.json ? JSON.stringify({ verdict: block ? "BLOCK" : "PASS", mode: dual ? "dual" : "fast", ms: Math.round(ms), findings })
       : render({ findings, dual, ms, files, block }));
     return block ? 1 : 0;
