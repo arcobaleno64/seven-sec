@@ -9,6 +9,7 @@ import path from "node:path";
 import { deps, buildPrompt, redactSecrets, parseAgyStream, parseFindings, dedupe, resolveNativeWindowsBinary } from "../src/goldfish.mjs";
 import { run, init, isDual, isTier1, parseNumstat, parseUnifiedDiff } from "../src/cli.mjs";
 
+delete process.env.APPDATA; // hermetic: never resolve the host's real codex.exe; mocks key on the bare name "codex"
 const ROOT = path.join(import.meta.dirname, "..");
 const realExecFile = deps.execFile;
 const HINT = "💡 High-risk security path modified. Consider running '/security-audit:security-audit --scope changes' before release.";
@@ -235,7 +236,7 @@ test("[REQ-08] 7sec init: creates an executable #!/bin/sh pre-commit hook; exit 
   assert.equal(init(dir), 0);
   const hook = path.join(dir, ".git", "hooks", "pre-commit");
   assert.equal(fs.readFileSync(hook, "utf8"), "#!/bin/sh\n7sec --staged\n");
-  assert.equal(fs.statSync(hook).mode & 0o777, 0o755);
+  if (process.platform !== "win32") assert.equal(fs.statSync(hook).mode & 0o777, 0o755); // NTFS has no exec bit
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -249,7 +250,7 @@ test("[REQ-08] 7sec init: appends to an existing hook once (idempotent)", () => 
   const body = fs.readFileSync(hook, "utf8");
   assert.equal(body, "#!/bin/sh\n7sec --staged || exit 1\necho lint\n"); // first, so a later `exit 0` cannot skip it
   assert.equal(body.split("7sec --staged").length - 1, 1);
-  assert.equal(fs.statSync(hook).mode & 0o777, 0o755);
+  if (process.platform !== "win32") assert.equal(fs.statSync(hook).mode & 0o777, 0o755); // NTFS has no exec bit
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -311,7 +312,7 @@ test("[REQ-02] agy transient failure (non-zero exit) is retried once; a second f
 });
 
 // tools/ (TFVC helpers, python3): not part of src/, but they gate what leaves the machine, so they are pinned too.
-const py = spawnSync("python3", ["--version"]).status === 0;
+const py = process.platform !== "win32" && spawnSync("python3", ["--version"]).status === 0; // shebang scripts: run under WSL/Linux
 const tool = (name, input) => spawnSync(path.join(ROOT, "tools", name), { input });
 const fixture = (name) => fs.readFileSync(path.join(ROOT, "tests", "fixtures", name));
 
