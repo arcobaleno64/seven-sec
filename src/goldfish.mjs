@@ -122,7 +122,14 @@ export function dedupe(findings) {
   return [...groups.values()].map((g) => g.toSorted(byRank)[0]).toSorted(byRank);
 }
 
-export async function review({ diff, spec = "", intent = "", dual = false, timeoutMs = 60_000, signal }) {
+/** Reviewer timeout: SEVENSEC_TIMEOUT_MS (positive integer, ms) or 60 s. Invalid → TOOL_ERROR, never a silent default. */
+function defaultTimeoutMs(v = process.env.SEVENSEC_TIMEOUT_MS) {
+  if (!v) return 60_000;
+  if (!/^[1-9]\d*$/.test(v)) throw new ToolError(`SEVENSEC_TIMEOUT_MS must be a positive integer (ms), got "${v}"`);
+  return Number(v);
+}
+
+export async function review({ diff, spec = "", intent = "", dual = false, timeoutMs = defaultTimeoutMs(), signal }) {
   const [d, s, i] = [diff, spec, intent].map(redactSecrets);
   const hits = d.hits + s.hits + i.hits;
   const prompt = buildPrompt({ diff: d.text, spec: s.text, intent: i.text });

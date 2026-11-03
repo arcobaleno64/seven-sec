@@ -147,6 +147,41 @@ test("[REQ-03] Dual Quorum fails closed (exit 2) on a non-zero sentinel or inval
   assert.equal(await run([]), 2);
 });
 
+/** Reviewer that never answers; honors the abort signal the way a real spawn does. */
+function mockHang() {
+  return mock.method(deps, "spawn", (cmd, args, opts) => {
+    const child = new EventEmitter();
+    opts.signal?.addEventListener("abort", () => child.emit("error", Object.assign(new Error("aborted"), { name: "AbortError" })));
+    return Object.assign(child, { stdin: new PassThrough(), stdout: new Readable({ read() {} }), stderr: new Readable({ read() {} }) });
+  });
+}
+const withTimeoutEnv = async (value, fn) => {
+  const prev = process.env.SEVENSEC_TIMEOUT_MS;
+  if (value === undefined) delete process.env.SEVENSEC_TIMEOUT_MS; else process.env.SEVENSEC_TIMEOUT_MS = value;
+  try { return await fn(); } finally { if (prev === undefined) delete process.env.SEVENSEC_TIMEOUT_MS; else process.env.SEVENSEC_TIMEOUT_MS = prev; }
+};
+
+test("[REQ-11] SEVENSEC_TIMEOUT_MS sets the reviewer timeout: a hung reviewer is cut off at that value (exit 2)", async () => {
+  quiet(); mockGit({ files: [["src/x.mjs", 20]], diff: diffOf(20) });
+  mockHang();
+  const t0 = performance.now();
+  assert.equal(await withTimeoutEnv("50", () => run([])), 2);
+  assert.ok(performance.now() - t0 < 5000, "the 50 ms override is honored, not the 60 s default");
+  assert.match(printed(console.error), /timed out/);
+});
+
+test("[REQ-11] SEVENSEC_TIMEOUT_MS must be a positive integer: anything else exits 2 before any reviewer runs; empty = default", async () => {
+  for (const bad of ["abc", "0", "-5", "1.5", "60s"]) {
+    mock.restoreAll(); quiet(); mockGit({ files: [["src/x.mjs", 20]], diff: diffOf(20) });
+    const { fn } = mockSpawn();
+    assert.equal(await withTimeoutEnv(bad, () => run([])), 2, bad);
+    assert.equal(fn.mock.callCount(), 0, `${bad}: no reviewer started`);
+    assert.match(printed(console.error), /SEVENSEC_TIMEOUT_MS/);
+  }
+  mock.restoreAll(); quiet(); mockGit({ files: [["src/x.mjs", 20]], diff: diffOf(20) }); mockSpawn();
+  assert.equal(await withTimeoutEnv("", () => run([])), 0, "empty string falls back to the default");
+});
+
 test("[REQ-03] Routing rules, numstat parsing, dedupe and Windows binary resolution", () => {
   assert.ok(isTier1("src/auth/jwt.mjs") && isTier1("package.json") && isTier1(".github/workflows/ci.yml"));
   assert.ok(isTier1("deploy/Dockerfile.prod") && isTier1(".env.local") && !isTier1("src/x.mjs"));
