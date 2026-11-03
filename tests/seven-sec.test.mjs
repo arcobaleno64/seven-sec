@@ -283,6 +283,22 @@ test("[REQ-03] parseUnifiedDiff: a miscounted hunk header cannot swallow the nex
   assert.deepEqual(parseUnifiedDiff(d).map((f) => f.file), ["x.mjs", "auth/login.mjs"]);
 });
 
+test("[REQ-02] agy transient failure (non-zero exit) is retried once; a second failure still fails closed (exit 2)", async () => {
+  for (const [failures, want, calls] of [[1, 0, 2], [2, 2, 2]]) {
+    mock.restoreAll(); quiet(); mockGit({ files: [["src/x.mjs", 3]], diff: diffOf(3) });
+    let n = 0;
+    const fn = mock.method(deps, "spawn", () => {
+      const child = new EventEmitter(), stdin = new PassThrough(), bad = ++n <= failures;
+      const out = `${JSON.stringify({ event: "result", result: { status: "SUCCESS", response: '{"findings":[]}' } })}\n`;
+      Object.assign(child, { stdin, stdout: Readable.from([bad ? "" : out]), stderr: Readable.from(["EOF"]) });
+      stdin.on("finish", () => setImmediate(() => child.emit("close", bad ? 1 : 0)));
+      return child;
+    });
+    assert.equal(await run([]), want);
+    assert.equal(fn.mock.callCount(), calls);
+  }
+});
+
 test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines and <= 20,480 bytes (20 KB)", () => {
   const files = fs.globSync("src/**/*.mjs", { cwd: ROOT });
   const text = files.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));

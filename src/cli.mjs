@@ -73,7 +73,7 @@ async function collectDiff({ staged, base, diff: diffArg }) {
   return { root, files: parseNumstat(numstat), diff };
 }
 
-/** Pre-flight `node --check` on changed .js/.mjs; `ref` ("" = index, "HEAD:" = --base) checks that revision, null the working tree. */
+/** Pre-flight `node --check`; `ref` = revision to read (null: working tree). */
 async function preflight(root, files, ref) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "7sec-"));
   const results = await Promise.all(files.filter((f) => /\.m?js$/.test(f.file)).map(async ({ file }, i) => {
@@ -156,8 +156,8 @@ export async function run(argv = process.argv.slice(2), { signal, timeoutMs } = 
     const syntax = v.diff ? [] : await preflight(root, files, v.base ? "HEAD:" : v.staged ? ":" : null); // external diff: no local copy to check
     if (syntax.length) return console.error(c(["red", "bold"], "✖ BLOCK: syntax error (node --check)"), `\n${syntax.join("\n\n")}`), 1;
     const spec = v.spec ? fs.readFileSync(v.spec, "utf8") : "";
-    const kb = Math.ceil((Buffer.byteLength(diff) + Buffer.byteLength(spec)) / 1024);
-    if (kb * 1024 > MAX_BYTES) return console.error(c("yellow", `✖ Diff + spec ${kb} KB > 128 KB; split the change (never truncated).`)), 2;
+    const n = Buffer.byteLength(diff) + Buffer.byteLength(spec);
+    if (n > MAX_BYTES) return console.error(c("yellow", `✖ Diff + spec ${Math.ceil(n / 1024)} KB > 128 KB; split the change (never truncated).`)), 2;
     const dual = isDual(files);
     const findings = await review({ diff, spec, intent: v.intent ?? "", dual, signal, timeoutMs });
     const block = findings.some(isSerious), ms = performance.now() - t0;
