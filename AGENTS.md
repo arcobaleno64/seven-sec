@@ -5,8 +5,9 @@
 2. 依 exit code 行動：
    - `0` PASS → 可 commit。
    - `1` BLOCK → 只修報表列出的語法錯誤 / critical / high / drift / 機密項，再回到步驟 1。
+     - 懷疑是誤報的 finding：**先用測試或實測驗證**；確認誤報就不要改程式碼，並在回報中附上證據（反例輸入與實際輸出）。誤報不計入「要修的項目」，但仍須列給使用者；可行時把該反例寫成 `[REQ-xx]` 測試固定下來。
    - `2` TOOL_ERROR → **不要改程式碼**；回報環境問題（未登入、額度、Timeout、diff 過大）給使用者。
-3. 第 3 輪仍為 BLOCK → 停止，把剩餘 findings 交給使用者裁示。
+3. 第 3 輪仍為 BLOCK → 停止，把剩餘 findings 交給使用者裁示（reviewer 無跨次記憶，已驗證的誤報可能再次出現；回報時標明「已驗證誤報」與「待裁示」兩類）。
 
 ## 鐵律
 - 核心只有 `src/cli.mjs` 與 `src/goldfish.mjs`；`src/**/*.mjs` 總行數 ≤ 350、總大小 ≤ 20,480 bytes（20 KB，`npm test` 守門）。

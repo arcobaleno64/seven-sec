@@ -271,6 +271,13 @@ test("[REQ-07] Pre-flight: --diff skips the working-tree syntax check (external 
   } finally { process.chdir(cwd); fs.rmSync(root, { recursive: true }); }
 });
 
+test("[REQ-03] parseNumstat: git -z rename records ('a\\td\\t\\0old\\0new') do not misalign the records that follow", () => {
+  const z = "\0", raw = ["1\t0\t", "old.txt", "new.txt", "5\t2\ta.js", "3\t3\t", "o2", "n2", "7\t1\tb.js", ""].join(z);
+  assert.deepEqual(parseNumstat(raw), [
+    { file: "new.txt", lines: 1 }, { file: "a.js", lines: 7 }, { file: "n2", lines: 6 }, { file: "b.js", lines: 8 },
+  ]);
+});
+
 test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines and <= 20,480 bytes (20 KB)", () => {
   const files = fs.globSync("src/**/*.mjs", { cwd: ROOT });
   const text = files.map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));
