@@ -9,6 +9,13 @@
    - `2` TOOL_ERROR → **不要改程式碼**；回報環境問題（未登入、額度、Timeout、diff 過大）給使用者。
 3. 第 3 輪仍為 BLOCK → 停止，把剩餘 findings 交給使用者裁示（reviewer 無跨次記憶，已驗證的誤報可能再次出現；回報時標明「已驗證誤報」與「待裁示」兩類）。
 
+## TFVC／非 git 專案（AI 必讀，避免誤判）
+- 一律用 `tools/tf7sec`；**不要**自己拼 `tf2utf8 | 7sec`。自拼管線若未加 `set -o pipefail`，上游失敗會變成空輸入，7sec 會印 `Clean working tree` 並 exit 0——**這是假通過**。預期有變更卻看到 `Clean working tree`，一律視為失敗，不是 PASS。
+- 7sec 會把 diff 送給外部模型（agy、codex）。**不得**送審含連線字串、密碼、金鑰、真實個資的檔案；遮蔽只認特定格式，不認主機、帳號、cookie。`tf7sec` 只依「檔名」排除設定檔，不檢查內容。
+- `tf difference` 看不到新增檔案，須另外審（見 README），且該路徑不經 `tf-exclude`，送審前要自行確認內容。
+- 文件與指令中的 `<…>` 是佔位符，必須換成實際值；每個區塊都標明在 Windows cmd 或 WSL 執行，不可混用。`wsl bash -c` 會被外層 shell 重新解析，`exit=` 不可信，請用 `wsl -e`。
+- 跑不明的專案腳本（例如 `verify.ps1`）之前先讀過它會做什麼；整合測試可能真的寄信或改資料。
+
 ## 鐵律
 - 核心只有 `src/cli.mjs` 與 `src/goldfish.mjs`；`src/**/*.mjs` 總行數 ≤ 350（`npm test` 守門，無位元組上限）。
 - 只用 Node 24 原生 API，零依賴。
