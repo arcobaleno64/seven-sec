@@ -57,13 +57,14 @@ type C:\temp\new.diff | wsl -e bash -c "set -o pipefail; <repo>/tools/tf2utf8 | 
 7sec --intent "只加重試日誌，不改變回傳型別"
 ```
 
-## 與 Coding Agent (Claude Code / Codex) 自動自癒閉環
-在目標專案根目錄的 `AGENTS.md`（或 `CLAUDE.md`）加入守則，並執行 `7sec init`：
+## 與 Coding Agent (Claude Code / Codex / AGY) 搭配的守則
+在目標專案根目錄的 `AGENTS.md`（或 `CLAUDE.md`）加入下列守則，並執行 `7sec init`。**請整段複製，不要只留第一條**：「修到綠燈為止」而沒有輪數上限與誤報規則，AI 會為了消掉誤報去改正確的程式碼，並在工具出錯時也亂改程式。完整版見本 repo 的 `AGENTS.md`。
 ```markdown
-- 提交前必須通過 `7sec -s` 門禁。
-- 若收到 exit 1 (BLOCK)，必須依據反例自行修復代碼，直到 exit 0 方可 commit。
+- 提交前必須通過 `7sec --staged` 門禁。
+- exit 1 (BLOCK)：只修報表列出的項目，最多 3 輪；懷疑誤報先實測，確認誤報就不要為了消掉它而改碼，附證據回報；第 3 輪仍 BLOCK 就停下，交給使用者裁示。
+- exit 2 (TOOL_ERROR)：不要改程式碼，回報環境問題（未登入、額度、逾時、diff 過大）。
 ```
-從此 AI 在 commit 被擋下時，會自己在背景讀取反例並修復程式碼，直到綠燈通過才向你交差。
+AI 會在 commit 被擋下時依反例修復，最多 3 輪；仍被擋或遇到工具錯誤就停下回報，而不是無限循環。
 
 ## 測試
 ```bash
