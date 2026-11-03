@@ -1,0 +1,20 @@
+{
+  "name": "seven-sec",
+  "version": "0.1.0",
+  "description": "7-Second Memory, Zero-Config Diff Gate: stateless goldfish review of git diffs via agy (+ codex).",
+  "type": "module",
+  "bin": {
+    "7sec": "./src/cli.mjs",
+    "seven-sec": "./src/cli.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "test": "node --test tests/seven-sec.test.mjs",
+    "sbom": "npm sbom --sbom-format=spdx"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
