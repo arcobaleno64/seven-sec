@@ -1,0 +1,5 @@
+# TFVC 輔助腳本要在 WSL/Linux 執行，shebang 後面不能有 \r
+tools/*            text eol=lf
+
+# fixture 含 Big5/UTF-8 混合位元組，原樣保存，不做任何行尾轉換
+tests/fixtures/*   -text
