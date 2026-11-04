@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <title>7sec - Abstract Goldfish Head &amp; Breath Bubble</title>
+  <defs>
+    <linearGradient id="fishhead-gold" x1="24" y1="20" x2="104" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFE55C" />
+      <stop offset="45%" stop-color="#FF9500" />
+      <stop offset="100%" stop-color="#FF3B30" />
+    </linearGradient>
+  </defs>
+
+  <!-- 抽象線條：7 字金魚頭輪廓 + 吐出的靈動泡泡 -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- 圓潤的頭部額丘 (7 的頭部弧線起點) 延伸至背脊橫槓 -->
+    <path d="M 34 40 C 34 26 48 24 58 24 L 88 24" 
+          stroke="url(#fishhead-gold)" stroke-width="7" />
+    
+    <!-- 俐落下切的鰓裂與下顎切線 (7 的主斜切弧刃) -->
+    <path d="M 88 24 C 88 52 66 82 40 98" 
+          stroke="url(#fishhead-gold)" stroke-width="7" />
+
+    <!-- 魚嘴前方吐出的標誌性泡泡 (Breath Bubble / 7sec 瞬時快篩原點) -->
+    <circle cx="102" cy="24" r="5" stroke="url(#fishhead-gold)" stroke-width="3" fill="#FFE55C" fill-opacity="0.3" />
+    <!-- 微小伴隨副泡泡 -->
+    <circle cx="112" cy="16" r="2" fill="#FFE55C" opacity="0.8" />
+  </g>
+</svg>

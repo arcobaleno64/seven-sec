@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <title>7sec &amp; 3lens - Refined Breathing Lenses (嚴格內縮安全框版)</title>
+  <defs>
+    <!-- 7sec 金魚暖金烈焰漸層 -->
+    <linearGradient id="fin-gold-tuned" x1="18" y1="20" x2="84" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFE55C" />
+      <stop offset="45%" stop-color="#FF9500" />
+      <stop offset="100%" stop-color="#FF3B30" />
+    </linearGradient>
+
+    <!-- 3lens 三顆從小到大水珠透鏡 (優化座標與光學漸層) -->
+    <!-- 泡泡 1 (小鏡 / 剛離嘴) -->
+    <linearGradient id="opt-sm" x1="78" y1="20" x2="92" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7DD3FC" />
+      <stop offset="100%" stop-color="#0284C7" />
+    </linearGradient>
+    <!-- 泡泡 2 (中鏡 / 浮升) -->
+    <linearGradient id="opt-md" x1="86" y1="36" x2="108" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#0284C7" />
+    </linearGradient>
+    <!-- 泡泡 3 (大透鏡 / 綻放，收斂至邊界內，不貼邊) -->
+    <linearGradient id="opt-lg" x1="84" y1="62" x2="114" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00F5FF" />
+      <stop offset="100%" stop-color="#0055FF" />
+    </linearGradient>
+
+    <!-- 暗底座 -->
+    <radialGradient id="tune-bg" cx="64" cy="64" r="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#020617" />
+    </radialGradient>
+  </defs>
+
+  <!-- 圓角暗黑底座 (112x112，rx=28) -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#tune-bg)" stroke="#1E293B" stroke-width="1.5" />
+
+  <!-- 7sec：金魚頭與背樑 (整體稍微向左微縮，保持中央黃金比例) -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- 額頭橫樑 -->
+    <path d="M 22 44 C 22 26 36 24 48 24 L 72 24" 
+          stroke="url(#fin-gold-tuned)" stroke-width="6.5" />
+    <!-- 下顎斜切 -->
+    <path d="M 72 24 C 72 52 54 82 28 98" 
+          stroke="url(#fin-gold-tuned)" stroke-width="6.5" />
+  </g>
+
+  <!-- 3lens：嘴前吐出「從小到大 (Small -> Medium -> Large)」，嚴格約束在畫框邊界內 (Padding >= 15px) -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- 第 1 鏡 (小透鏡，cx=84, cy=24, r=5，右邊緣 89 << 120) -->
+    <circle cx="84" cy="24" r="5" stroke="url(#opt-sm)" stroke-width="2.5" fill="#7DD3FC" fill-opacity="0.25" />
+    <circle cx="82" cy="22" r="1.2" fill="#FFFFFF" opacity="0.9" />
+
+    <!-- 第 2 鏡 (中透鏡，cx=95, cy=44, r=8，右邊緣 103 << 120) -->
+    <circle cx="95" cy="44" r="8" stroke="url(#opt-md)" stroke-width="2.8" fill="#38BDF8" fill-opacity="0.25" />
+    <circle cx="92" cy="41" r="1.8" fill="#FFFFFF" opacity="0.9" />
+
+    <!-- 第 3 鏡 (大透鏡，cx=98, cy=74, r=12.5，右邊緣 110.5，距外框 120 有足足 9.5px 安全邊界！下邊緣 86.5 << 120) -->
+    <circle cx="98" cy="74" r="12.5" stroke="url(#opt-lg)" stroke-width="3.5" fill="#00F5FF" fill-opacity="0.25" />
+    <circle cx="94" cy="69" r="2.8" fill="#FFFFFF" opacity="0.95" />
+  </g>
+
+  <!-- 魚嘴處的微小初生氣息光點 -->
+  <circle cx="74" cy="24" r="1.6" fill="#FFE55C" />
+</svg>
