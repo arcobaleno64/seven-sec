@@ -1,7 +1,7 @@
 {
   "name": "seven-sec",
   "version": "0.1.0",
-  "description": "7-Second Memory, Zero-Config Diff Gate: stateless goldfish review of git diffs via agy (+ codex).",
+  "description": "A stateless git-diff gate: a zero-context reviewer (agy, codex) that blocks bugs, security issues and drift.",
   "type": "module",
   "bin": {
     "7sec": "./src/cli.mjs",
@@ -15,6 +15,11 @@
     "sbom": "npm sbom --sbom-format=spdx"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "author": "arcobaleno",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arcobaleno64/seven-sec.git"
+  },
+  "homepage": "https://github.com/arcobaleno64/seven-sec#readme"
 }
