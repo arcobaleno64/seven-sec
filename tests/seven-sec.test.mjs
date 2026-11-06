@@ -12,7 +12,7 @@ import { run, init, isDual, isTier1, parseNumstat, parseUnifiedDiff } from "../s
 delete process.env.APPDATA; // hermetic: never resolve the host's real codex.exe; mocks key on the bare name "codex"
 const ROOT = path.join(import.meta.dirname, "..");
 const realExecFile = deps.execFile;
-const HINT = "💡 High-risk security path modified. Consider running '/security-audit:security-audit --scope changes' before release.";
+const HINT = "💡 High-risk security path modified. Consider running '/three-lens:3lens --scope changes' before release.";
 afterEach(() => mock.restoreAll());
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "7sec-test-"));
@@ -120,7 +120,7 @@ test("[REQ-02] agy stream-json parsing: result.response; in-band errors (exit 0)
   assert.equal(parseFindings('{"findings":[{"severity":"blocker"},{"severity":"fatal"},{}]}').every((f) => f.severity === "high"), true);
 });
 
-test("[REQ-03] Dual Quorum: Tier-1 file (2 lines) runs agy + codex and prints the security-audit hint", async () => {
+test("[REQ-03] Dual Quorum: Tier-1 file (2 lines) runs agy + codex and prints the three-lens hint", async () => {
   quiet(); mockGit({ files: [["src/auth/jwt.mjs", 2]], diff: diffOf(2, "src/auth/jwt.mjs") });
   const { calls } = mockSpawn();
   assert.equal(await run([]), 0);
@@ -129,14 +129,14 @@ test("[REQ-03] Dual Quorum: Tier-1 file (2 lines) runs agy + codex and prints th
   assert.ok(printed(console.log).trimEnd().endsWith(HINT), "hint is the last line of the text report");
 });
 
-test("[REQ-03] Dual Quorum by size (>=50 lines, no Tier-1): no security-audit hint; --json never has it", async () => {
+test("[REQ-03] Dual Quorum by size (>=50 lines, no Tier-1): no three-lens hint; --json never has it", async () => {
   quiet(); mockGit({ files: [["src/a.mjs", 60]], diff: diffOf(60) });
   mockSpawn();
   assert.equal(await run([]), 0);
-  assert.ok(!printed(console.log).includes("security-audit"));
+  assert.ok(!printed(console.log).includes("three-lens"));
   mock.restoreAll(); quiet(); mockGit({ files: [["src/auth/jwt.mjs", 2]], diff: diffOf(2) }); mockSpawn();
   assert.equal(await run(["--json"]), 0);
-  assert.ok(!printed(console.log).includes("security-audit"));
+  assert.ok(!printed(console.log).includes("three-lens"));
 });
 
 test("[REQ-03] Dual Quorum fails closed (exit 2) on a non-zero sentinel or invalid JSON", async () => {

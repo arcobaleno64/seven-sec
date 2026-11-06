@@ -9,7 +9,7 @@
 - **Executable RTM**：本專案採用測試驅動之活體需求追溯矩陣（Executable RTM via `node --test`）；`npm test` 輸出的 `[REQ-01]`～`[REQ-09]` 即需求與驗證證據。
 
 ## ISO/IEC 27701:2025
-- **AI 傳輸憑證遮蔽**：送往 AI 前以 8 類憑證樣式（`sk-`、`AIza`、`ghp_`、`github_pat_`、`xox[bp]-`、`ya29.`、`AKIA`、PEM 私鑰）替換為 `[REDACTED_SECRET]`。
+- **AI 傳輸憑證遮蔽**：送往 AI 前以 9 類憑證樣式（`sk-`、`AIza`、`ghp_`、`github_pat_`、`xox[bp]-`、`ya29.`、`AKIA`、PEM 私鑰、連線字串內的 `Password=`／`Pwd=`）替換為 `[REDACTED_SECRET]`。
 - **暫存即毀**：prompt 與 reviewer 輸出只存在 `os.tmpdir()/7sec-*`，審查結束即 `rmSync`；7sec 不保存任何紀錄。
 - **禁止提交真實 PII**：遮蔽只涵蓋憑證，**不偵測 email、電話、身分證號等 PII**；測試與範例只用合成資料。
 

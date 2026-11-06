@@ -106,7 +106,7 @@ function render({ findings, dual, ms, files, block }) {
   }
   out.push("", block ? c(["red", "bold"], "✖ BLOCK") : c(["green", "bold"], "✔ PASS"));
   if (files.some((f) => isTier1(f.file))) {
-    out.push(c("yellow", "💡 High-risk security path modified. Consider running '/security-audit:security-audit --scope changes' before release."));
+    out.push(c("yellow", "💡 High-risk security path modified. Consider running '/three-lens:3lens --scope changes' before release."));
   }
   return out.join("\n");
 }

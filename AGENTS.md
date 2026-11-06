@@ -25,5 +25,5 @@
 ## 架構決策紀錄（ADR）
 - **ADR-01 Stateless tmpdir isolation**：每次審查在新建的 `os.tmpdir()/7sec-*` 空目錄執行並於結束時刪除；reviewer 不帶任何跨次記憶。
 - **ADR-02 Node 24 zero-dependency**：只用 `node:` 內建模組，無 npm 執行期依賴，供應鏈攻擊面趨近於零（`npm run sbom` 可驗證）。
-- **ADR-03 3-tool temporal decoupling**：EGM（寫碼前設計）→ 7sec（commit 前 diff 閘門）→ security-audit（發佈前深度稽核），三者只以檔案與提示訊息銜接，無程式碼耦合。
+- **ADR-03 3-tool temporal decoupling**：EGM（寫碼前設計）→ 7sec（commit 前 diff 閘門）→ three-lens（發佈前深度稽核），三者只以檔案與提示訊息銜接，無程式碼耦合。
 - **ADR-04 350-LOC hard ceiling**：`src/` ≤ 350 行由 REQ-09 強制；新功能須以刪減換取預算。
