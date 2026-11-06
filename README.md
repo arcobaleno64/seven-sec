@@ -1,72 +1,137 @@
 # seven-sec (`7sec`)
 
-> 7-Second Memory, Zero-Config Diff Gate — 零上下文金魚審查你的 git diff。
+A stateless git-diff gate: a zero-context reviewer (agy, codex) that blocks bugs, security issues and drift.
 
-## 30 秒上手
+[繁體中文說明 →](README.zh-TW.md)
+
+> **Independent project.** `seven-sec` is community-maintained and is **not affiliated with, endorsed by, or sponsored by Google LLC, Anthropic, or OpenAI**. Third-party names identify tools this project interoperates with or discusses; their respective terms govern those systems.
+
+## Contents
+
+[Start here](#start-here) · [When to use it](#when-to-use-it) · [Why a goldfish](#why-a-goldfish) · [Commands and capabilities](#commands-and-capabilities) · [Use it with a coding agent](#use-it-with-a-coding-agent) · [Known limitations](#known-limitations) · [Troubleshooting](#troubleshooting) · [Security and trust boundary](#security-and-trust-boundary) · [Versions and support](#versions-and-support) · [Contributing, license, related projects](#contributing-license-related-projects)
+
+## Start here
+
 ```bash
-npm link              # 在 seven-sec 目錄執行一次：全域註冊 7sec 指令（hook 依賴它）
-7sec init             # 在目標 repo 根目錄執行：寫入 .git/hooks/pre-commit（7sec --staged）
-7sec doctor           # 檢查 node>=24 / git / agy / codex
-7sec                  # 審工作區（staged + unstaged，tracked 檔）
-7sec --staged         # 只審暫存區（適合 pre-commit hook）
-7sec --base origin/main   # 審整個 PR 分支（merge-base...HEAD）
-7sec --intent "一句話意圖" # 免寫規格手銬：防 AI 擅自重構、改壞型別或擴大戰線 (抓 drift)
-7sec --json           # 機器可讀輸出
+# 1. In the seven-sec directory, once per machine: registers the global 7sec command (the hook depends on it)
+npm link
+# 2. At the root of the repo you want to guard: check the toolchain, then install the pre-commit hook
+7sec doctor
+7sec init
+# 3. Daily: review your working tree (staged + unstaged, tracked files)
+7sec
 ```
 
-路由：一般小改動 → `⚡ Fast Path (agy)`；≥ 50 行或觸碰 auth/security/crypto/jwt/login/token/permission/.github/workflows、package.json、Dockerfile*、.env*、Web.config、app.config、appsettings*.json、Global.asax* → `🛡️ Dual Quorum (agy + codex)`，任一失敗即 fail-closed。
+Expected: `7sec doctor` prints one line per check (node, git, git repo, agy, codex), `✔` when it passes. `7sec init` prints `✔ pre-commit hook: <path>`, and the hook contains the single line `7sec --staged`. On a tree with no changes, `7sec` prints `✔ Clean working tree (0 lines changed)` and exits 0.
 
-Exit：`0` PASS · `1` BLOCK（語法錯誤 / critical / high / drift / 明文機密）· `2` TOOL_ERROR。
+`7sec doctor` must run inside a git repository; elsewhere the `git repo` check fails and it exits 2.
 
-> **128 KB 門檻**：`diff + spec` 超過 128 KB 時 exit 2 拒絕（拒絕偷偷截斷）。請改用 `git add <關鍵檔案>` 搭配 `7sec --staged` 進行原子化小提交審查。
+## When to use it
 
-## 非 git 專案：TFVC（`--diff <file|->` + `tools/`）
-`--diff` 直接讀入 unified diff（檔案或 `-` 代表 stdin），完全不呼叫 git，也不做語法預檢。但 TFVC 的輸出有幾個坑，`tools/` 已處理（需要 `python3`，不屬於 7sec 核心）：
+| You need | Use 7sec? |
+|----------|-----------|
+| A last check on a diff before every commit, with no setup per project | Yes |
+| To catch an AI coding agent drifting from the intent or spec you gave it | Yes (`--intent`, `--spec`) |
+| A review of a whole PR branch | Yes (`--base origin/main`) |
+| A diff from a non-git system such as TFVC | Yes, via [docs/tfvc.md](docs/tfvc.md) |
+| A scan of existing code or git history for secrets | No: it reads only the diff |
+| A deep pre-release security audit | No: see [three-lens](#contributing-license-related-projects) |
+| A review of code you may not send to external models | No: every review sends the diff out |
+| A CI job | Not yet: only the local hook and manual runs exist |
 
-- **編碼混雜**：標頭與本機端是 Big5（CP950），伺服器端可能是 UTF-8，同一份 diff 沒有單一編碼 → `tf2utf8` 逐行判斷。
-- **帶連線資訊的檔案會被送出去**：`tf-exclude` 依檔名整段排除 `app.config`、`web.config`、`appsettings*.json`、`.env*`、`Configuration.cs`、`*.pubxml`、`secret(s).*` 等；認不得格式時 fail closed。它只看檔名，不看內容。
-- **`tf difference` 看不到新增檔案**（沒有伺服器版本）→ 見下方。
+## Why a goldfish
 
-> **讀這一節前**：角括號 `<…>`（`<repo>`、`<spec>`、`<TF.exe 路徑>`、`<一句話意圖>`）是**佔位符，必須換成實際值，不可照字面執行**；`[…]` 表示可省略。每個區塊都標明執行環境（Windows cmd 或 WSL bash），不可混用。
+Each review starts a fresh reviewer process in an empty temporary directory, with only the diff, an optional spec and an optional intent. It carries no memory from earlier runs and cannot read your repository, so it can only judge what the diff shows (`src/goldfish.mjs`). The price is that it sometimes reports false positives and gives different answers across runs; see [Known limitations](#known-limitations).
 
-```bat
-:: 1.【Windows cmd】不要用 PowerShell 管線（會被重新編碼）。每次一個資料夾，存成原始檔
-cd /d C:\temp
-"<TF.exe 路徑>" difference "D:\repos\X\SomeProject" /recursive /format:unified > some.diff
+## Commands and capabilities
 
-:: 2.【Windows cmd 呼叫 WSL】一行審查（wsl -e 不經預設 shell；用完整路徑，PATH 不一定含 ~/.local/bin）
-type C:\temp\some.diff | wsl -e <repo>/tools/tf7sec --spec <spec> [--intent "<一句話意圖>"]
-del C:\temp\some.diff
-```
-`tf7sec` = `tf2utf8 | tf-exclude | 7sec --diff - --spec <spec>`。**轉換或過濾階段失敗 → exit 2，且不會呼叫 reviewer**；兩階段都成功後，exit code 就是 7sec 本身的 0／1／2。輸入真的是空的才會印 `Clean working tree`（exit 0）。**自己用管線串接時**必須加 `set -o pipefail`，否則上游失敗會變成空輸入而誤報通過。**`--spec <file>`（或環境變數 `TF7SEC_SPEC`）是必填，沒有預設值**；沒給就 exit 2 並拒絕，不會呼叫 reviewer。這是刻意的：預設值會把一個專案的規則悄悄套到另一個專案的 diff 上。PROJ1 專案的 spec 是本 repo 的 `docs/example-spec.md`。
+| Command | What it does |
+|---------|--------------|
+| `7sec` | Review the working tree (staged + unstaged, tracked files) |
+| `7sec --staged` (`-s`) | Review the staging area only; this is what the hook runs |
+| `7sec --base <ref>` | Review `<ref>...HEAD`, e.g. a whole PR branch |
+| `7sec --diff <file\|->` | Review a unified diff from a file or stdin; no git involved |
+| `7sec --spec <file>` | Also check the diff against a design or rules file |
+| `7sec --intent "<text>"` | Also check the diff against a one-line intent |
+| `7sec --json` | Machine-readable output |
+| `7sec doctor` / `7sec init` / `7sec --help` | Check the toolchain / install the pre-commit hook / print usage |
 
-**新增檔案**（先確認內容沒有憑證／主機）：用 git 做成「從空檔案新增」的 diff，這條路**不能用 `tf7sec`**（它只認 TF 格式，遇到 git 格式會拒絕）：
-```bat
-:: 【Windows cmd】`NUL` 是 Windows 的空檔案；Linux 上等價的是 /dev/null
-git diff --no-index --no-color -- NUL Mail/New.cs > C:\temp\new.diff
-:: 【Windows cmd 呼叫 WSL】此路徑不經 tf-exclude，所以送審前必須自行確認檔案內容沒有憑證、主機、個資
-type C:\temp\new.diff | wsl -e bash -c "set -o pipefail; <repo>/tools/tf2utf8 | 7sec --diff - --spec <spec>"
-```
-**限制**：`diff + spec` 超過 128 KB 會 exit 2（不截斷）→ 依資料夾分批；`wsl` 預設發行版不一定掛載 `C:`，所以用 stdin 餵入，不要依賴 `/mnt/c`；`exit=` 以 `wsl -e` 為準（`wsl bash -c` 會被外層 shell 重新解析而不可信）。
+Environment variables: `SEVENSEC_FAST` (`codex` by default, or `agy`; any other value exits 2), `SEVENSEC_TIMEOUT_MS` (reviewer timeout in milliseconds, default 60000, must be a positive integer), `TF7SEC_SPEC` (the spec for `tools/tf7sec`).
 
-## 與 Google EGM 搭配（寫碼前設計 → 寫碼後抓漂移）
-```bash
-# 1. 用 EGM 產出設計稿 docs/designs/auth-flow.md
-# 2. 實作後檢查是否偏離設計
-7sec --spec docs/designs/auth-flow.md
-7sec --intent "只加重試日誌，不改變回傳型別"
-```
+Exit codes: `0` PASS · `1` BLOCK (syntax error, critical, high, drift, or a plaintext secret) · `2` TOOL_ERROR.
 
-## 與 Coding Agent (Claude Code / Codex / AGY) 搭配的守則
-在目標專案根目錄的 `AGENTS.md`（或 `CLAUDE.md`）加入下列守則，並執行 `7sec init`。**請整段複製，不要只留第一條**：「修到綠燈為止」而沒有輪數上限與誤報規則，AI 會為了消掉誤報去改正確的程式碼，並在工具出錯時也亂改程式。完整版見本 repo 的 `AGENTS.md`。
+| Capability | Status | Evidence |
+|------------|--------|----------|
+| Fast Path: one reviewer (codex by default) for ordinary small changes | Active | `fastReviewer()` in `src/goldfish.mjs`; `[REQ-02]` test |
+| Dual Quorum: agy + codex for a change of 50 lines or more, or one touching auth/security/crypto/jwt/login/token/permission/.github/workflows, package.json, Dockerfile*, .env*, Web.config, app.config, appsettings*.json, Global.asax*; if either reviewer fails, the gate fails closed | Active | `isDual()` and `TIER1` in `src/cli.mjs` |
+| Pre-commit hook (`7sec init`) | Active | `init()` in `src/cli.mjs` |
+| Drift check against `--spec` / `--intent` | Active | `drift` category in `src/goldfish.mjs` |
+| TFVC input (`tools/tf7sec`, needs `python3`) | Active | [docs/tfvc.md](docs/tfvc.md) |
+| Quantitative claims (accuracy, speed) | Not applicable | None are made: the numbers above are fixed rules, not measurements |
+
+## Use it with a coding agent
+
+Add these rules to `AGENTS.md` (or `CLAUDE.md`) at the target project root, then run `7sec init`. **Copy the whole block**: "fix until green" with no round limit and no false-positive rule leads an AI to change correct code just to silence a false positive, and to edit code when the tool itself fails. The full version is [AGENTS.md](AGENTS.md).
+
 ```markdown
-- 提交前必須通過 `7sec --staged` 門禁。
-- exit 1 (BLOCK)：只修報表列出的項目，最多 3 輪；懷疑誤報先實測，確認誤報就不要為了消掉它而改碼，附證據回報；第 3 輪仍 BLOCK 就停下，交給使用者裁示。
-- exit 2 (TOOL_ERROR)：不要改程式碼，回報環境問題（未登入、額度、逾時、diff 過大）。
+- A commit must pass the `7sec --staged` gate first.
+- exit 1 (BLOCK): fix only the listed items, at most 3 rounds; if you suspect a false positive, test it first, and once confirmed do not change code to silence it — report it with evidence; if the 3rd round is still BLOCK, stop and hand it to the user.
+- exit 2 (TOOL_ERROR): do not change code; report the environment problem (not logged in, quota, timeout, oversized diff).
 ```
-AI 會在 commit 被擋下時依反例修復，最多 3 輪；仍被擋或遇到工具錯誤就停下回報，而不是無限循環。
 
-## 測試
+Pairing with Google EGM (design before coding, catch drift after):
+
 ```bash
-npm test
+7sec --spec docs/designs/auth-flow.md        # a design doc produced beforehand
+7sec --intent "only add retry logging; do not change the return type"
 ```
+
+Onboarding a new or existing project: [docs/onboarding.md](docs/onboarding.md) (Traditional Chinese).
+
+## Known limitations
+
+- **128 KB limit**: when `diff + spec` exceeds 128 KB, 7sec exits 2 and refuses; it never truncates silently. Use `git add <key files>` with `7sec --staged` to review in small commits.
+- It reads only the diff: it does not scan git history, so it cannot find secrets already committed.
+- The syntax pre-check (`node --check`) covers `.js` and `.mjs` files only.
+- Reviewers produce false positives and answers that differ from run to run; confirm before changing correct code.
+- Secret redaction recognises specific credential formats only; it does not mask hosts, accounts, cookies or personal data (details in [SECURITY.md](SECURITY.md)).
+- `git commit --no-verify` bypasses the hook.
+- No CI version; local hook and manual runs only.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `7sec doctor` shows `✖ git repo` | Not run inside a git repository | `cd` to the repo root and rerun |
+| `✖ agy` or `✖ codex`: `not found on PATH` | The CLI is not installed or not on `PATH` | Install it, log in, rerun `7sec doctor` |
+| `Diff + spec N KB > 128 KB` (exit 2) | The change is over the size limit | Commit in smaller pieces with `git add <files>` and `7sec --staged` |
+| `TOOL_ERROR: ... timed out or aborted` | A reviewer exceeded the timeout | Raise `SEVENSEC_TIMEOUT_MS` (milliseconds) and rerun |
+| `TOOL_ERROR: SEVENSEC_FAST must be "codex" or "agy"` | Invalid value | Unset it, or set `codex` or `agy` |
+| `TOOL_ERROR: --base must be a git ref` | The value starts with `-` | Pass a branch name or commit |
+| `Unknown command: ...` (exit 2) | Only `review`, `doctor` and `init` exist | See `7sec --help` |
+
+## Security and trust boundary
+
+| Question | Answer |
+|----------|--------|
+| What leaves your machine? | The diff, the spec and the intent, after credential redaction, sent through your own `agy` (Google) and `codex` (OpenAI) accounts |
+| What is stored? | Prompts and reviewer output live only in `os.tmpdir()/7sec-*` and are deleted when the review ends; 7sec keeps no logs |
+| What can a reviewer touch? | Its working directory is an empty temporary directory; `agy --mode=plan` and `codex --sandbox=read-only` |
+| What if a reviewer fails, times out or returns invalid JSON? | Exit 2; the change is never silently passed |
+| What is not covered? | Personal data and non-credential secrets are not detected; do not put real personal data in tests or examples |
+
+Control mapping and threat model: [SECURITY.md](SECURITY.md) (self-declared, not third-party certified).
+
+## Versions and support
+
+- Package version `0.1.0` (`package.json`). <!-- volatile -->
+- Node.js `>= 24` is required (`engines` in `package.json`); `7sec doctor` checks it. <!-- volatile -->
+- `git`, `agy` and `codex` must be on `PATH`. No minimum version is enforced for any of them.
+- Last observed working: Node v24.14.1, git 2.54.0, agy 1.5.2, codex-cli 0.166.0 on Windows 11, 2026-11-06 (`7sec doctor`, `--help`, `init` and a clean-tree run; the reviewer path was not exercised). <!-- volatile -->
+
+## Contributing, license, related projects
+
+- Rules for coding agents working on this repository: [AGENTS.md](AGENTS.md). There is no `CONTRIBUTING.md`.
+- Tests: `npm test` (run in the seven-sec directory).
+- License: MIT, see [LICENSE](LICENSE).
+- Related, and independent of each other (neither is bundled with or required by the other): [`three-lens`](https://github.com/arcobaleno64/three-lens), a multi-stage security assurance plugin for Antigravity CLI. Run it for a deeper audit before release; 7sec prints a hint when a change touches a high-risk path.
