@@ -46,6 +46,7 @@ function mockSpawn({ findings = [], fail, raw } = {}) {
   return { fn, calls };
 }
 
+process.env.SEVENSEC_FAST = "agy"; // the agy-specific tests below pin the Fast Path reviewer; defaults are covered by [REQ-02] SEVENSEC_FAST tests
 const quiet = () => { mock.method(console, "log", () => {}); mock.method(console, "error", () => {}); };
 const printed = (fn) => fn.mock.calls.map((c) => c.arguments.join(" ")).join("\n");
 const diffOf = (n, file = "src/x.mjs") => `diff --git a/${file} b/${file}\n` + Array.from({ length: n }, (_, i) => `+line ${i}`).join("\n");
@@ -389,4 +390,18 @@ test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines", () => {
   const lines = text.reduce((n, t) => n + t.split("\n").length - (t.endsWith("\n") ? 1 : 0), 0);
   assert.ok(files.length >= 2);
   assert.ok(lines <= 350, `src has ${lines} lines`);
+});
+
+test("[REQ-02] Fast Path defaults to codex only; SEVENSEC_FAST=agy switches back; an invalid value fails closed (exit 2)", async () => {
+  const keep = process.env.SEVENSEC_FAST;
+  try {
+    for (const [val, want, code] of [[undefined, ["codex"], 0], ["codex", ["codex"], 0], ["agy", ["agy"], 0], ["gemini", [], 2]]) {
+      mock.restoreAll(); quiet(); mockGit({ files: [["src/x.mjs", 3]], diff: diffOf(3) });
+      if (val === undefined) delete process.env.SEVENSEC_FAST; else process.env.SEVENSEC_FAST = val;
+      const { calls } = mockSpawn();
+      assert.equal(await run([]), code, `SEVENSEC_FAST=${val}`);
+      assert.deepEqual(calls.map((c) => c.cmd), want, `SEVENSEC_FAST=${val}`);
+      if (code === 0) assert.ok(printed(console.log).includes(`Fast Path (${want[0]})`), `label for SEVENSEC_FAST=${val}`);
+    }
+  } finally { process.env.SEVENSEC_FAST = keep; }
 });

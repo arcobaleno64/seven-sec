@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import pkg from "../package.json" with { type: "json" };
-import { deps, review, resolveNativeWindowsBinary, RANK } from "./goldfish.mjs";
+import { deps, review, fastReviewer, resolveNativeWindowsBinary, RANK } from "./goldfish.mjs";
 
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_BYTES = 128 * 1024;
@@ -95,7 +95,7 @@ export const isDual = (files) => countLines(files) >= 50 || files.some((f) => is
 const isSerious = (f) => RANK[f.severity] <= RANK.high || f.category === "drift";
 
 function render({ findings, dual, ms, files, block }) {
-  const mode = dual ? "🛡️ Dual Quorum (agy + codex)" : "⚡ Fast Path (agy)";
+  const mode = dual ? "🛡️ Dual Quorum (agy + codex)" : `⚡ Fast Path (${fastReviewer()})`;
   const out = [`${c(["cyan", "bold"], mode)} · ${files.length} file(s), ${countLines(files)} lines · ${(ms / 1000).toFixed(1)}s`];
   const counts = [...Map.groupBy(findings, (f) => f.severity)].map(([sev, g]) => `${g.length} ${sev}`);
   if (counts.length) out.push(c("dim", counts.join(", ")));

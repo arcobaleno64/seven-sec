@@ -129,14 +129,22 @@ function defaultTimeoutMs(v = process.env.SEVENSEC_TIMEOUT_MS) {
   return Number(v);
 }
 
+/** Single-review (Fast Path) reviewer: SEVENSEC_FAST = codex (default) | agy. Invalid → TOOL_ERROR, never a silent default. */
+export function fastReviewer(v = process.env.SEVENSEC_FAST) {
+  if (!v) return "codex";
+  if (v !== "codex" && v !== "agy") throw new ToolError(`SEVENSEC_FAST must be "codex" or "agy", got "${v}"`);
+  return v;
+}
+
 export async function review({ diff, spec = "", intent = "", dual = false, timeoutMs = defaultTimeoutMs(), signal }) {
+  const fast = dual ? "" : fastReviewer();
   const [d, s, i] = [diff, spec, intent].map(redactSecrets);
   const hits = d.hits + s.hits + i.hits;
   const prompt = buildPrompt({ diff: d.text, spec: s.text, intent: i.text });
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "7sec-"));
   const ctx = { cwd, signal: AbortSignal.any([AbortSignal.timeout(timeoutMs), signal].filter(Boolean)) };
   try {
-    const settled = await Promise.allSettled(dual ? [runAgy(prompt, ctx), runCodex(prompt, ctx)] : [runAgy(prompt, ctx)]);
+    const settled = await Promise.allSettled(dual ? [runAgy(prompt, ctx), runCodex(prompt, ctx)] : [fast === "agy" ? runAgy(prompt, ctx) : runCodex(prompt, ctx)]);
     const failed = settled.filter((r) => r.status === "rejected");
     if (failed.length) throw new ToolError(failed.map((r) => r.reason.message).join("; "));
     const findings = settled.flatMap((r) => r.value);
