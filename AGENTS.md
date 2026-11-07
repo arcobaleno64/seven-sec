@@ -20,7 +20,7 @@
 - 核心只有 `src/cli.mjs` 與 `src/goldfish.mjs`；`src/**/*.mjs` 總行數 ≤ 350（`npm test` 守門，無位元組上限）。
 - 只用 Node 24 原生 API，零依賴。
 - 效能 SLO：7sec 自身開銷（git、遮蔽、路由、解析）< 300 ms。
-- 每個 `test()` 標題以 `[REQ-xx]` 開頭，對應規格書 §5 驗收基準；新增需求先加測試。
+- 每個 `test()` 標題以 `[REQ-xx]` 開頭，對應規格書 §5 驗收基準；新增需求先加測試。重複發生 ≥2 次的規則違反，優先寫入 `tests/` 守門（如 REQ-09 守 350 行上限），已由測試鎖死者不重複塞進文字守則。
 
 ## 架構決策紀錄（ADR）
 - **ADR-01 Stateless tmpdir isolation**：每次審查在新建的 `os.tmpdir()/7sec-*` 空目錄執行並於結束時刪除；reviewer 不帶任何跨次記憶。
