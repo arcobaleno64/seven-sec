@@ -8,7 +8,7 @@ A stateless git-diff gate: a zero-context reviewer (agy, codex) that blocks bugs
 
 ## Contents
 
-[Start here](#start-here) · [When to use it](#when-to-use-it) · [Why a goldfish](#why-a-goldfish) · [Commands and capabilities](#commands-and-capabilities) · [Use it with a coding agent](#use-it-with-a-coding-agent) · [Known limitations](#known-limitations) · [Troubleshooting](#troubleshooting) · [Security and trust boundary](#security-and-trust-boundary) · [Versions and support](#versions-and-support) · [Contributing, license, related projects](#contributing-license-related-projects)
+[Start here](#start-here) · [When to use it](#when-to-use-it) · [Why a goldfish](#why-a-goldfish) · [Where it fits](#where-it-fits) · [Commands and capabilities](#commands-and-capabilities) · [Use it with a coding agent](#use-it-with-a-coding-agent) · [Known limitations](#known-limitations) · [Troubleshooting](#troubleshooting) · [Security and trust boundary](#security-and-trust-boundary) · [Versions and support](#versions-and-support) · [Contributing, license, related projects](#contributing-license-related-projects)
 
 ## Start here
 
@@ -42,6 +42,25 @@ Expected: `7sec doctor` prints one line per check (node, git, git repo, agy, cod
 ## Why a goldfish
 
 Each review starts a fresh reviewer process in an empty temporary directory, with only the diff, an optional spec and an optional intent. It carries no memory from earlier runs and cannot read your repository, so it can only judge what the diff shows (`src/goldfish.mjs`). The price is that it sometimes reports false positives and gives different answers across runs; see [Known limitations](#known-limitations).
+
+## Where it fits
+
+7sec sits in the middle of a three-stage flow. Each stage is a separate tool; none requires the others.
+
+```text
+ before coding            while committing           before release
+ Google EGM       -->     7sec (this repo)    -->    three-lens (3lens)
+ design the change        gate every diff            deep security audit
+ (produces a spec)        (--spec / --intent)        (/three-lens:3lens)
+```
+
+| Stage | Tool | Hands over |
+|-------|------|------------|
+| Before | Google EGM: write the design first | A design doc that you pass to 7sec with `--spec` |
+| During | 7sec: a zero-context reviewer checks each diff against that design | PASS, or a BLOCK report; on a high-risk path it prints a hint to run 3lens |
+| After | [`three-lens`](https://github.com/arcobaleno64/three-lens): a multi-stage audit of the changes | A security assurance report before you ship |
+
+The hand-offs are manual: 7sec reads the spec file you name and prints a hint, nothing more. It does not call EGM or 3lens.
 
 ## Commands and capabilities
 
