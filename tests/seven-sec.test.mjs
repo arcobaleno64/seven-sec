@@ -392,6 +392,20 @@ test("[REQ-09] Size guard: src/**/*.mjs total <= 350 lines", () => {
   assert.ok(lines <= 350, `src has ${lines} lines`);
 });
 
+test("[REQ-09] Size guard: no src line wider than 210 columns (stops cramming logic into long lines to dodge the line cap)", () => {
+  for (const f of fs.globSync("src/**/*.mjs", { cwd: ROOT })) {
+    const wide = fs.readFileSync(path.join(ROOT, f), "utf8").split(/\r?\n/).filter((l) => l.length > 210);
+    assert.equal(wide.length, 0, `${f} has ${wide.length} line(s) wider than 210 columns; split them instead of raising the cap`);
+  }
+});
+
+test("[REQ-09] Size guard: JS/TS code lives only in src/ (capped) or tests/; none hides in tools/, root or elsewhere", () => {
+  const stray = fs.globSync("**/*.{mjs,cjs,js,ts}", { cwd: ROOT })
+    .map((f) => f.replaceAll("\\", "/"))
+    .filter((f) => !/^(src|tests)\//.test(f) && !/(^|\/)(node_modules|\.git)\//.test(f));
+  assert.deepEqual(stray, [], `code outside src/ escapes the 350-line cap: ${stray.join(", ")}`);
+});
+
 test("[REQ-02] Fast Path defaults to codex only; SEVENSEC_FAST=agy switches back; an invalid value fails closed (exit 2)", async () => {
   const keep = process.env.SEVENSEC_FAST;
   try {
